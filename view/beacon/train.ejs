@@ -1,0 +1,36 @@
+<% implement('layouts/chimera') %>
+<% style('elric-chimera') %>
+
+<% script([
+	'//code.jquery.com/jquery-2.1.4.min.js',
+	'doek/jquery.mousewheel',
+	'doek/doek',
+	'doek/doek.canvas',
+	'doek/doek.layer',
+	'doek/doek.object',
+	'doek/doek.node',
+	'doek/doek.node.line',
+	'doek/doek.node.rectangle',
+	'doek/doek.event',
+	'doek/doek.action',
+	'doek.nodes',
+	'mainDoek',
+	'doek.actions',
+	'beacon_training'
+]); %>
+
+<% start('chimera-status') %>
+<% end('chimera-status') %>
+
+<% start('chimera-cage') %>
+<div>
+	<p>Drag the bright green square to where the beacon is now and press "Start training"</p>
+	<button
+		class="btn btn-success btn-start-training"
+		title="Start training"
+	>
+		Start training
+	</button>
+</div>
+<div id="train-map" data-width=1000 data-height=500></div>
+<% end('chimera-cage') %>

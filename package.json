@@ -1,0 +1,12 @@
+{
+	"name": "elric-bluetooth",
+	"description": "The Elric bluetooth plugin",
+	"version": "0.1.0",
+	"author": "Jelle De Loecker <jelle@develry.be>",
+	"keywords": ["elric", "plugin", "bluetooth"],
+	"repository": "git@github.com:skerit/elric-bluetooth.git",
+	"dependencies": {
+		"bluejeans": "0.1.0"
+	},
+	"license": "GPLv3"
+}
