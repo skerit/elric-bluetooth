@@ -254,6 +254,152 @@ Beacon.setDocumentMethod(function throttleSave() {
 });
 
 /**
+ * Get this beacon's position classifier
+ *
+ * @author   Jelle De Loecker <jelle@develry.be>
+ * @since    0.1.0
+ * @version  0.1.0
+ *
+ * @param    {Function}   callback
+ */
+Beacon.setDocumentMethod(function getPositionClassifier(callback) {
+
+	var that = this;
+
+	if (this._fetching_classifier) {
+		return this.oncence('position_classifier', function gotClassifier(classifier) {
+			return callback(null, classifier);
+		});
+	}
+
+	Function.series(function getClassifier(next) {
+
+		var LCM,
+		    options;
+
+		// If the classifier has already been fetched, do nothing
+		if (that._position_classifier) {
+			return next();
+		}
+
+		options = {
+			conditions: {
+				beacon_id: that._id
+			}
+		};
+
+		LCM = Model.get('LocationClassifier');
+
+		LCM.find('first', options, function gotClassifier(err, record) {
+
+			if (err) {
+				return next(err);
+			}
+
+			if (!record.length) {
+				record = LCM.createDocument();
+				record.beacon_id = that._id;
+			}
+
+			if (!record.instance) {
+				record.instance = new Classes.Elric.LocationClassifier();
+			}
+
+			that._position_classifier = record;
+
+			that.emit('position_classifier', record);
+
+			next();
+		});
+	}, function done(err) {
+
+		if (err) {
+			return callback(err);
+		}
+
+		return callback(null, that._position_classifier);
+	});
+});
+
+/**
+ * Start training the position classifier
+ *
+ * @author   Jelle De Loecker <jelle@develry.be>
+ * @since    0.1.0
+ * @version  0.1.0
+ *
+ * @param    {Function}   callback
+ */
+Beacon.setDocumentMethod(function startLocationTraining(callback) {
+
+	var that = this;
+
+	// Get the classifier record
+	this.getPositionClassifier(function gotClassifier(err, classifier) {
+
+		if (err) {
+			return callback(err);
+		}
+
+		classifier.train(callback);
+	});
+});
+
+/**
+ * Start collection samples for location classifier
+ *
+ * @author   Jelle De Loecker <jelle@develry.be>
+ * @since    0.1.0
+ * @version  0.1.0
+ *
+ * @param    {Object}   data   Data containing beacon position
+ */
+Beacon.setDocumentMethod(function startLocationSampleCollection(data) {
+
+	var record,
+	    BT;
+
+	// Ignore if already training
+	if (this._training_record) {
+		return false;
+	}
+
+	BT = Model.get('LocationTrain');
+	record = BT.createDocument();
+
+	record.beacon_id = this._id;
+	record.name = data.name;
+	record.location_id = data.location_id;
+	record.data = {};
+
+	this._location_training_record = record;
+
+	console.log('Going to train:', data);
+});
+
+/**
+ * Stop training location
+ *
+ * @author   Jelle De Loecker <jelle@develry.be>
+ * @since    0.1.0
+ * @version  0.1.0
+ */
+Beacon.setDocumentMethod(function stopLocationSampleCollection() {
+
+	var record;
+
+	if (!this._location_training_record) {
+		return;
+	}
+
+	record = this._location_training_record;
+	this._location_training_record = null;
+
+	// A final save
+	record.save();
+});
+
+/**
  * Start training
  *
  * @author   Jelle De Loecker <jelle@develry.be>
@@ -262,7 +408,7 @@ Beacon.setDocumentMethod(function throttleSave() {
  *
  * @param    {Object}   data   Data containing beacon position
  */
-Beacon.setDocumentMethod(function startTraining(data) {
+Beacon.setDocumentMethod(function startPositionSampleCollection(data) {
 
 	var record,
 	    BT;
@@ -293,7 +439,7 @@ Beacon.setDocumentMethod(function startTraining(data) {
  * @since    0.1.0
  * @version  0.1.0
  */
-Beacon.setDocumentMethod(function stopTraining() {
+Beacon.setDocumentMethod(function stopPositionSampleCollection() {
 
 	var record;
 
@@ -351,8 +497,45 @@ Beacon.setDocumentMethod(function processAdvert(advert, client) {
 		this.emit('training_data', client._id, data);
 	}
 
+	if (this._location_training_record) {
+		if (!this._location_training_record.data[client._id]) {
+			this._location_training_record.data[client._id] = [];
+		}
+
+		this._location_training_record.data[client._id].push(data);
+
+		this.emit('training_data', client._id, data);
+	}
+
 	// Save the document
 	this.throttleSave();
+
+	// Try getting a classifier
+	this.getPositionClassifier(function gotClassifier(err, classifier) {
+
+		var location;
+
+		log.once(advert.address, 'Got classifier?', err, classifier, advert)
+
+		if (err || !classifier || !classifier.instance || !classifier.instance.enabled) {
+			return;
+		}
+
+		if (!classifier._t) {
+			classifier._t = 0;
+		}
+
+		classifier._t++;
+
+		location = classifier.addLocatorData(client._id, advert.rssi, new Date());
+
+		if (!location) {
+			return;
+		}
+
+		// Do something with the location!
+
+	});
 });
 
 /**

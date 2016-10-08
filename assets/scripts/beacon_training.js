@@ -7,31 +7,67 @@
  */
 hawkejs.scene.on({type: 'set', name: 'chimera-cage', template: 'beacon/train'}, function setDoek(element, variables) {
 
-	var plan = new Floorplan('train-map'),
-	    training = false,
-	    record = variables.record[0].Beacon,
+	var selecting,
+	    training,
+	    selected,
+	    $collect,
+	    $train,
+	    record,
 	    beacon,
-	    link;
+	    link,
+	    plan;
 
+	// Create new floorplan
+	plan = new Floorplan('train-map');
+
+	// Get the start-collecting button
+	$collect = $('.btn-start-collecting');
+
+	// Get the start-training button
+	$train = $('.btn-start-training');
+
+	// Get the beacon record
+	record = variables.record[0].Beacon;
+
+	console.log('Adding element types:', variables.element_types, variables)
+
+	// Add all element types
 	plan.addElementTypes(variables.element_types);
+
+	// Add all rooms
 	plan.addRooms(variables.rooms);
 
-	beacon = plan.addElements([{
-		dx: 0,
-		dy: 0,
-		element_type: 'beacon',
-		height: 1,
-		name: 'beacon'
-	}])[0];
+	// Enable the 'select' action
+	plan.d.setAction('select');
+	plan.mode = 'select';
 
-	// Enable changeSize status, so we can move the beacon
-	plan.d._selectedNode = beacon;
-	plan.selected = beacon;
-	plan.d.setAction('changeSize');
-
+	// DEBUG expose the plan
 	window.train_floorplan = plan;
 
-	$('.btn-start-training').on('click', function onClick(e) {
+	// Listen to the mouseup event
+	plan.d.on('mouseup', function clicked(canvas) {
+
+		var node = canvas._selectedNode;
+
+		// Don't change selection when selecting
+		if (selecting) {
+			return;
+		}
+
+		// Only allow clicks on location elements
+		if (!node || node.elricType != 'location') {
+			selected = null;
+			return;
+		}
+
+		// Set this node as the selected one
+		selected = node;
+
+		$collect[0].innerText = 'Collect "' + selected.roomElement.name + '" samples';
+	});
+
+	// Start collecting samples on click
+	$collect.on('click', function onClick(e) {
 
 		var that = this,
 		    client_count = 0,
@@ -41,21 +77,13 @@ hawkejs.scene.on({type: 'set', name: 'chimera-cage', template: 'beacon/train'}, 
 
 		e.preventDefault();
 
-		if (training) {
+		if (selecting) {
 
-			// Allow the user to start training again
-			this.innerText = 'Start training';
-			training = false;
+			// Allow the user to start selecting again
+			this.innerText = 'Collect "' + selected.roomElement.name + '" samples';
+			selecting = false;
 
-			// Make sure the beacon is selected
-			plan.selected = beacon;
-			plan.d._selectedNode = beacon;
-
-			// Change the state of the canvas,
-			// so the beacon can be dragged again
-			plan.d.setAction('changeSize');
-
-			// Stop the training
+			// Stop the selecting
 			link.submit('stop');
 
 			// Destroy the link
@@ -64,21 +92,24 @@ hawkejs.scene.on({type: 'set', name: 'chimera-cage', template: 'beacon/train'}, 
 			// Nullify it, too
 			link = null;
 
-			// Stop training!
+			// Stop selecting!
+			return;
+		}
+
+		if (!selected) {
 			return;
 		}
 
 		data = {
-			beacon_id : record._id,
-			x         : beacon.position.mapX,
-			y         : beacon.position.mapY,
-			z         : 0
+			beacon_id   : record._id,
+			location_id : selected.roomElement._id,
+			name        : selected.roomElement.name
 		};
 
 		// Create the train link
-		link = alchemy.linkup('beacontrain', data);
+		link = alchemy.linkup('beaconcollect', data);
 
-		// Listen for training data, just for information
+		// Listen for selecting data, just for information
 		link.on('training_data', function gotData(packet) {
 
 			var client_id = packet.client_id,
@@ -92,13 +123,38 @@ hawkejs.scene.on({type: 'set', name: 'chimera-cage', template: 'beacon/train'}, 
 			clients[client_id]++;
 			packets++;
 
-			that.innerText = 'Stop training (' + packets + ' samples from ' + client_count + ' clients)';
-
-			console.log('Got client data:', client_id, data);
+			that.innerText = 'Stop collecting "' + selected.roomElement.name + '" samples (' + packets + ' from ' + client_count + ' clients)';
 		});
 
-		this.innerText = 'Stop training';
-		training = true;
+		this.innerText = 'Stop collecting "' + selected.roomElement.name + '" samples';
+		selecting = true;
 		plan.d.setAction(false);
+	});
+
+	// Start training the network on click
+	$train.on('click', function onClick(e) {
+
+		var that = this,
+		    data;
+
+		e.preventDefault();
+
+		if (training) {
+			console.log('Already training');
+			return;
+		}
+
+		data = {
+			beacon_id : record._id
+		};
+
+		training = alchemy.linkup('beacontrain', data);
+
+		// Listen for training updates
+		training.on('update', function gotUpdate(packet) {
+
+			console.log('Got train update:', packet);
+
+		});
 	});
 });

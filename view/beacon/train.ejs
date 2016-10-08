@@ -1,5 +1,6 @@
 <% implement('layouts/chimera') %>
 <% style('elric-chimera') %>
+<% style('elric-positioning') %>
 
 <% script([
 	'//code.jquery.com/jquery-2.1.4.min.js',
@@ -24,13 +25,19 @@
 
 <% start('chimera-cage') %>
 <div>
-	<p>Drag the bright green square to where the beacon is now and press "Start training"</p>
+	<p>Select your location, click "Start training", and move around a bit.</p>
+	<button
+		class="btn btn-success btn-start-collecting"
+		title="Collect samples"
+	>
+		Collect samples
+	</button>
 	<button
 		class="btn btn-success btn-start-training"
-		title="Start training"
+		title="Train network"
 	>
-		Start training
+		Train network
 	</button>
 </div>
-<div id="train-map" data-width=1000 data-height=500></div>
+<div id="train-map" data-width=650 data-height=450></div>
 <% end('chimera-cage') %>

@@ -6,7 +6,8 @@
 	"keywords": ["elric", "plugin", "bluetooth"],
 	"repository": "git@github.com:skerit/elric-bluetooth.git",
 	"dependencies": {
-		"bluejeans": "0.1.0"
+		"bluejeans": "0.1.0",
+		"synaptic": "1.0.8"
 	},
 	"license": "GPLv3"
 }

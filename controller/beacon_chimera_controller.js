@@ -5,7 +5,7 @@
  * @since    0.1.0
  * @version  0.1.0
  */
-var Beacon = Function.inherits('ChimeraController', function BeaconChimeraController(conduit, options) {
+var Beacon = Function.inherits('Alchemy.ChimeraController', function BeaconChimeraController(conduit, options) {
 	BeaconChimeraController.super.call(this, conduit, options);
 });
 
@@ -69,7 +69,7 @@ Beacon.setMethod(function train(conduit) {
 	}, function getElementTypes(next) {
 
 		var element_types = {},
-		    shared = alchemy.shared('elric.element_type'),
+		    shared = alchemy.getClassGroup('elric_element_type'),
 		    entry,
 		    key;
 
@@ -108,7 +108,57 @@ Beacon.setMethod(function train(conduit) {
 });
 
 /**
- * Start training a beacon
+ * Start collecting beacon samples
+ *
+ * @author   Jelle De Loecker   <jelle@develry.be>
+ * @since    0.1.0
+ * @version  0.1.0
+ *
+ * @param   {Conduit}   conduit
+ */
+Beacon.setMethod(function collectLink(conduit, linkup, data) {
+
+	var that = this,
+	    stopped,
+	    record;
+
+	if (!data.beacon_id) {
+		return conduit.error('No beacon id found');
+	}
+
+	this.getModel('Beacon').getById(data.beacon_id, function gotBeacon(err, result) {
+
+		if (err) {
+			console.error('Cannot collect beacon samples:', err);
+			return conduit.error(err);
+		}
+
+		record = result;
+
+		// If we've already been stopped during finding,
+		// do nothing
+		if (stopped) {
+			return;
+		}
+
+		record.on('training_data', function gotTrainingData(client_id, data) {
+			linkup.submit('training_data', {client_id: client_id, data: data});
+		});
+
+		record.startLocationSampleCollection(data);
+	});
+
+	linkup.on('stop', function gotStop() {
+		stopped = true;
+
+		if (record) {
+			record.stopLocationSampleCollection();
+		}
+	});
+});
+
+/**
+ * Start training a beacon's network
  *
  * @author   Jelle De Loecker   <jelle@develry.be>
  * @since    0.1.0
@@ -141,21 +191,22 @@ Beacon.setMethod(function trainLink(conduit, linkup, data) {
 			return;
 		}
 
-		record.on('training_data', function gotTrainingData(client_id, data) {
-			linkup.submit('training_data', {client_id: client_id, data: data});
-		});
+		record.startLocationTraining();
 
-		record.startTraining(data);
+		// record.on('training_data', function gotTrainingData(client_id, data) {
+		// 	linkup.submit('training_data', {client_id: client_id, data: data});
+		// });
+
+		// record.startTrainingLocation(data);
 	});
 
 	linkup.on('stop', function gotStop() {
 		stopped = true;
 
-		if (record) {
-			record.stopTraining();
-		}
+		// Stop training
 	});
 });
+
 
 /**
  * Add a new element to a room
@@ -279,7 +330,7 @@ Beacon.setMethod(function getTypeExternalIds(conduit, data, callback) {
 	    constructor,
 	    instance;
 
-	constructor = alchemy.classes.Elric[class_name];
+	constructor = Classes.Elric[class_name];
 
 	if (!constructor) {
 		return callback(new Error('Not found: "' + class_name + '"'));
